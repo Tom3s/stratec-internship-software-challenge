@@ -17,6 +17,11 @@ Planet :: struct {
 	relative_mass: f64,
 }
 
+Rocket :: struct {
+	nr_engines: int,
+	acceleration: f64,
+}
+
 get_mass :: proc(planet: Planet) -> f64 {
 	return earth_mass * planet.relative_mass;
 }
@@ -32,10 +37,20 @@ ms_to_kms :: proc(ms: f64) -> f64 {
 	return ms * 0.001;
 }
 
+get_time_to_reach_escape_velocity :: proc(planet: Planet, rocket: Rocket) -> f64 {
+	return get_escape_velocity(planet) / (cast(f64) rocket.nr_engines * rocket.acceleration);
+}
+
+get_distance_until_escape_velocity :: proc(planet: Planet, rocket: Rocket, init_velocity: f64 = 0.0) -> f64 {
+	t := get_time_to_reach_escape_velocity(planet, rocket);
+	return init_velocity * t + ((cast(f64) rocket.nr_engines * rocket.acceleration) * t * t) / 2.0;
+}
+
+
 read_input :: proc(buffer: []byte) -> string {
 	n, err := os.read(os.stdin, buffer[:]);
 	if err != nil {
-		fmt.eprintln("[] Error reading: ", err);
+		fmt.eprintln("Error reading: ", err);
 		os.exit(1);
 		// return
 	}
@@ -44,10 +59,10 @@ read_input :: proc(buffer: []byte) -> string {
 	return str;
 }
 
-read_planetary_data :: proc() -> [dynamic]Planet {
+read_planetary_data :: proc(filepath: string = "./Planetary_Data.txt") -> [dynamic]Planet {
 	planets := make([dynamic]Planet);
 
-	data, ok := os.read_entire_file("./Planetary_Data.txt", context.allocator);
+	data, ok := os.read_entire_file(filepath, context.allocator);
 	if !ok {
 		// could not read file
 		return {};
@@ -132,6 +147,46 @@ read_planetary_data :: proc() -> [dynamic]Planet {
 	return planets;
 }
 
+read_rocket_data :: proc(filepath: string = "./Rocket_Data.txt") -> Rocket {
+	data, ok := os.read_entire_file(filepath, context.allocator);
+	if !ok {
+		// could not read file
+		return {};
+	}
+	defer delete(data, context.allocator);
+
+	rocket_data, err := strings.split_lines(string(data));
+
+	// fmt.println(rocket_data);
+	if !strings.has_prefix(rocket_data[0], "Number of rocket engines: ") {
+		fmt.println("Invalid rocket data format; Missing nr rockets");
+		return {};
+	}
+
+	nr_engines_str, _ := strings.remove_all(rocket_data[0], "Number of rocket engines: ");
+
+	nr_engines := strconv.atoi(nr_engines_str);
+
+	if !strings.has_prefix(rocket_data[1], "Acceleration per engine: ") {
+		fmt.println("Invalid rocket data format; Missing acceleration");
+		return {};
+	}
+	if !strings.has_suffix(rocket_data[1], " m/s^2") {
+		fmt.println("Invalid rocket data format; Wrong acceleration unit");
+		return {};
+	}
+
+	temp, _ := strings.remove_all(rocket_data[1], "Acceleration per engine: ")
+	acceleration_str, _ := strings.remove_all(temp, " m/s^2");
+
+	acceleration := strconv.atof(acceleration_str);
+
+	return Rocket{
+		acceleration = acceleration,
+		nr_engines = nr_engines,
+	}
+}
+
 // odin run ./backend/src -out:main.exe
 main :: proc() {
 	// buf: [256]byte
@@ -141,8 +196,14 @@ main :: proc() {
 
 	planets := read_planetary_data();
 
+	rocket := read_rocket_data();
+
+	fmt.println(rocket);
+
 	for planet in planets {
 		// fmt.println(planet);
 		fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
+		fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
+		fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
 	}
 }
