@@ -41,13 +41,22 @@ ms_to_kms :: proc(ms: f64) -> f64 {
 	return ms * 0.001;
 }
 
-get_time_to_reach_escape_velocity :: proc(planet: Planet, rocket: Rocket) -> f64 {
-	return get_escape_velocity(planet) / (cast(f64) rocket.nr_engines * rocket.acceleration);
+get_accel_time :: proc(v1, v2: f64, rocket: Rocket) -> f64 {
+	return linalg.abs(v1 - v2) / (cast(f64) rocket.nr_engines * rocket.acceleration)
+}
+
+get_time_to_reach_escape_velocity :: proc(planet: Planet, rocket: Rocket, init_velocity: f64 = 0.0) -> f64 {
+	return get_accel_time(get_escape_velocity(planet), init_velocity, rocket);
+}
+
+get_distance_travelled_with_accel :: proc(v, t, a: f64) -> f64 {
+	return v * t + (a * t * t) / 2.0;
 }
 
 get_distance_until_escape_velocity :: proc(planet: Planet, rocket: Rocket, init_velocity: f64 = 0.0) -> f64 {
-	t := get_time_to_reach_escape_velocity(planet, rocket);
-	return init_velocity * t + ((cast(f64) rocket.nr_engines * rocket.acceleration) * t * t) / 2.0;
+	t := get_time_to_reach_escape_velocity(planet, rocket, init_velocity);
+	// return init_velocity * t + ((cast(f64) rocket.nr_engines * rocket.acceleration) * t * t) / 2.0;
+	return get_distance_travelled_with_accel(init_velocity, t, (cast(f64) rocket.nr_engines * rocket.acceleration));
 }
 
 
@@ -311,6 +320,7 @@ Travel_Data :: struct {
 	p1, p2: Planet,
 	rocket: Rocket,
 
+	total_distance: f64,
 	accel_time: f64,
 	dist_from_surface: f64,
 	cruise_time: Time,
@@ -329,31 +339,47 @@ get_travel_data :: proc(p1, p2: Planet, rocket: Rocket) -> Travel_Data {
 	// cruising_velocity := 0.0;
 	// accel_decel_time := ;
 	// cruising_velocity, accel_time, escape_distance: f64;
-	heavier_planet: ^Planet;
+	heavier_planet, lighter_planet: ^Planet;
+	
 	if p1.relative_mass >= p2.relative_mass {
 		heavier_planet = &p1;
-	} else do heavier_planet = &p2;
+		lighter_planet = &p2;
+	} else {
+		heavier_planet = &p2;
+		lighter_planet = &p1;
+	}
 
 	cruising_velocity := get_escape_velocity(heavier_planet^);
 	accel_time := get_time_to_reach_escape_velocity(heavier_planet^, rocket);
 	escape_distance := get_distance_until_escape_velocity(heavier_planet^, rocket) * 0.001;
 
-	cruise_distance := d - 2 * escape_distance - cast(f64) p1.diameter * .5 - cast(f64) p2.diameter * .5;
+	
+	
+	s_cruise_vel := get_escape_velocity(lighter_planet^);
+	s_accel_time := get_time_to_reach_escape_velocity(lighter_planet^, rocket);
+	s_escape_distance := get_distance_until_escape_velocity(lighter_planet^, rocket) * 0.001;
+	s_t := get_accel_time(cruising_velocity, s_cruise_vel, rocket);
+	s_dist := get_distance_travelled_with_accel(cruising_velocity, s_t, - (cast(f64) rocket.nr_engines * rocket.acceleration));
+	
+	dist_to_surface := (s_escape_distance + s_dist) * 0.001
+
+	cruise_distance := d - escape_distance - dist_to_surface - cast(f64) p1.diameter * .5 - cast(f64) p2.diameter * .5;
 	cruise_time := cruise_distance / ms_to_kms(cruising_velocity);
 
-	travel_time := cruise_time + 2 * accel_time;
+	travel_time := cruise_time + accel_time + s_accel_time + s_t;
 
 	// time := make_time(travel_time);
 
 	return Travel_Data{
 		p1 = p1,
 		p2 = p2,
+		total_distance = d - cast(f64) p1.diameter * .5 - cast(f64) p2.diameter * .5,
 		rocket = rocket,
 		accel_time = accel_time,
 		dist_from_surface = escape_distance,
 		cruise_time = make_time(cruise_time),
-		dist_to_surface = escape_distance,
-		decel_time = accel_time,
+		dist_to_surface = dist_to_surface,
+		decel_time = s_accel_time + s_t,
 		travel_time = make_time(travel_time),
 	};
 }
@@ -371,6 +397,7 @@ print_travel_data :: proc(data: Travel_Data) {
 	);
 	fmt.printfln("Distance from %s's surface at cruising velocity: %.3f km", data.p2.name, data.dist_to_surface);
 	fmt.printfln("Time to decelerate to 0 km/s: %.3fs", data.decel_time);
+	fmt.printfln("Total distance travelled: %.3f km", data.total_distance);
 	fmt.printfln("Total travel time time: %i days, %i h, %i m, %i s (%.3f total seconds)",
 		data.travel_time.days,
 		data.travel_time.hours,
@@ -396,12 +423,12 @@ main :: proc() {
 
 	fmt.println(rocket);
 
-	// for planet in planets {
-	// 	fmt.println(planet);
-	// 	fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
-	// 	fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
-	// 	fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
-	// }
+	for planet in planets {
+		fmt.println(planet);
+		fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
+		fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
+		fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
+	}
 
 	// stage 3
 	// time to reach cruising vel
