@@ -407,6 +407,10 @@ print_travel_data :: proc(data: Travel_Data) {
 	);
 }
 
+get_planet_position :: proc(planet: Planet, days: int) -> f64 {
+	return linalg.mod((360.0 / cast(f64) planet.period) * cast(f64) days, 360);
+}
+
 
 // odin run ./backend/src -out:main.exe
 main :: proc() {
@@ -423,11 +427,18 @@ main :: proc() {
 
 	fmt.println(rocket);
 
+	day := 365;
+
 	for planet in planets {
-		fmt.println(planet);
-		fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
-		fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
-		fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
+		// fmt.println(planet);
+		// fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
+		// fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
+		// fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
+		fmt.printfln("%s's position in degrees afetr %i days: %.3f", 
+			planet.name,
+			day,
+			get_planet_position(planet, day),
+		)
 	}
 
 	// stage 3
@@ -438,10 +449,13 @@ main :: proc() {
 	// time to decelerate
 	// total travel time (+ days, h, m, s formatting)
 
-	p1 := planets[2];
-	p2 := planets[3];
+	// p1 := planets[2];
+	// p2 := planets[3];
 
-	travel_data := get_travel_data(p1, p2, rocket);
+	// travel_data := get_travel_data(p1, p2, rocket);
 
-	print_travel_data(travel_data);
+	// print_travel_data(travel_data);
+
+
+
 }
