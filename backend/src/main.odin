@@ -10,11 +10,15 @@ import "core:math/linalg"
 earth_mass: f64 = 0.0;
 
 GRAVITATIONAL_CONSTANT: f64 = cast(f64) 6.67 * cast(f64) linalg.exp10(-11.0);
+ASTRONOMICAL_UNIT: f64 = 149597870.7;
 
 Planet :: struct {
 	name: string,
 	diameter: int,
 	relative_mass: f64,
+
+	period: int,
+	orbital_radius: f64,
 }
 
 Rocket :: struct {
@@ -187,6 +191,196 @@ read_rocket_data :: proc(filepath: string = "./Rocket_Data.txt") -> Rocket {
 	}
 }
 
+// SS_Data :: struct {
+// 	name: string,
+// 	period: int,
+// 	radius: f64,
+// }
+
+read_solar_system_data :: proc(planets: [dynamic]Planet, filepath: string = "./Solar_System_Data.txt") -> [dynamic]Planet {
+	data, ok := os.read_entire_file(filepath, context.allocator);
+	if !ok {
+		// could not read file
+		return {};
+	}
+	defer delete(data, context.allocator);
+
+	it := string(data);
+	for line in strings.split_lines_iterator(&it) {
+		planet_data := strings.split(line, " ");
+
+		if !strings.has_suffix(planet_data[0], ":") {
+			fmt.println("Invalid solar system data format; Missing \":\" for name");
+			return {};
+		}
+		planet_name, was_alloc := strings.remove(planet_data[0], ":", -1);
+
+		if planet_data[1] != "period" {
+			fmt.println("Invalid solar system data format; Missing \"period\" keyword");
+			return {};
+		}
+		if planet_data[2] != "=" {
+			fmt.println("Invalid solar system data format; Missing \"=\" after \"period\" keyword");
+			return {};
+		}
+
+		period := strconv.atoi(planet_data[3]);
+
+		if planet_data[4] != "days," {
+			fmt.println("Invalid solar system data format; Wrong unit for period");
+			return {};
+		}
+
+		if planet_data[5] != "orbital" {
+			fmt.println("Invalid solar system data format; Missing \"orbital\" keyword");
+			return {};
+		}
+		if planet_data[6] != "radius" {
+			fmt.println("Invalid solar system data format; Missing \"radius\" keyword");
+			return {};
+		}
+		if planet_data[7] != "=" {
+			fmt.println("Invalid solar system data format; Missing \"=\" after \"orbital radius\"");
+			return {};
+		}
+
+		orbital_radius := strconv.atof(planet_data[8]);
+
+		if planet_data[9] != "AU" {
+			fmt.println("Invalid solar system data format; Wrong unit for orbital radius");
+			return {};
+		}
+
+		for &planet in planets {
+			if planet.name == planet_name {
+				planet.period = period;
+				planet.orbital_radius = orbital_radius;
+			}
+		}
+
+		// fmt.printf("Planet Mass: %.5f \n", get_mass(planet));
+	}
+
+	return planets;
+}
+
+get_distance_between :: proc(p1, p2: Planet) -> f64 {
+	return linalg.abs(p1.orbital_radius - p2.orbital_radius) * ASTRONOMICAL_UNIT;
+}
+
+Time :: struct {
+	total_seconds: f64,
+
+	seconds: int,
+	minutes: int,
+	hours: int,
+	days: int,
+}
+
+make_time :: proc(s: f64) -> Time {
+	t := cast(int) s;
+
+	time: Time;
+	time.total_seconds = s;
+
+	time.seconds = t % 60;
+	t -= time.seconds;
+	t /= 60;
+	time.minutes = t % 60;
+
+	t -= time.minutes;
+	t /= 60;
+	time.hours = t % 60;
+
+	t -= time.hours;
+	// t /= 24;
+	time.days = t / 24;
+
+	return time;
+}
+
+// stage 3
+// time to reach cruising vel
+// distance from surface at cruising vel
+// time of cruise
+// distance from surface to start decel
+// time to decelerate
+// total travel time (+ days, h, m, s formatting)
+
+Travel_Data :: struct {
+	p1, p2: Planet,
+	rocket: Rocket,
+
+	accel_time: f64,
+	dist_from_surface: f64,
+	cruise_time: Time,
+	dist_to_surface: f64,
+	decel_time: f64,
+	travel_time: Time,
+}
+
+get_travel_data :: proc(p1, p2: Planet, rocket: Rocket) -> Travel_Data {
+	p1 := p1;
+	p2 := p2;
+	// calc distance between planets
+	d := get_distance_between(p1, p2);
+	// fmt.printfln("%.3f", d);
+
+	// cruising_velocity := 0.0;
+	// accel_decel_time := ;
+	// cruising_velocity, accel_time, escape_distance: f64;
+	heavier_planet: ^Planet;
+	if p1.relative_mass >= p2.relative_mass {
+		heavier_planet = &p1;
+	} else do heavier_planet = &p2;
+
+	cruising_velocity := get_escape_velocity(heavier_planet^);
+	accel_time := get_time_to_reach_escape_velocity(heavier_planet^, rocket);
+	escape_distance := get_distance_until_escape_velocity(heavier_planet^, rocket) * 0.001;
+
+	cruise_distance := d - 2 * escape_distance - cast(f64) p1.diameter * .5 - cast(f64) p2.diameter * .5;
+	cruise_time := cruise_distance / ms_to_kms(cruising_velocity);
+
+	travel_time := cruise_time + 2 * accel_time;
+
+	// time := make_time(travel_time);
+
+	return Travel_Data{
+		p1 = p1,
+		p2 = p2,
+		rocket = rocket,
+		accel_time = accel_time,
+		dist_from_surface = escape_distance,
+		cruise_time = make_time(cruise_time),
+		dist_to_surface = escape_distance,
+		decel_time = accel_time,
+		travel_time = make_time(travel_time),
+	};
+}
+
+print_travel_data :: proc(data: Travel_Data) {
+	fmt.println("Information about travel between", data.p1.name, "and", data.p2.name);
+	fmt.printfln("Time to reach cruising velocity from %s: %.3fs", data.p1.name, data.accel_time);
+	fmt.printfln("Distance from %s's surface at cruising velocity: %.3f km", data.p1.name, data.dist_from_surface);
+	fmt.printfln("Cruising time: %i days, %i h, %i m, %i s (%.3f total seconds)",
+		data.cruise_time.days,
+		data.cruise_time.hours,
+		data.cruise_time.minutes,
+		data.cruise_time.seconds,
+		data.cruise_time.total_seconds,
+	);
+	fmt.printfln("Distance from %s's surface at cruising velocity: %.3f km", data.p2.name, data.dist_to_surface);
+	fmt.printfln("Time to decelerate to 0 km/s: %.3fs", data.decel_time);
+	fmt.printfln("Total travel time time: %i days, %i h, %i m, %i s (%.3f total seconds)",
+		data.travel_time.days,
+		data.travel_time.hours,
+		data.travel_time.minutes,
+		data.travel_time.seconds,
+		data.travel_time.total_seconds,
+	);
+}
+
+
 // odin run ./backend/src -out:main.exe
 main :: proc() {
 	// buf: [256]byte
@@ -198,12 +392,29 @@ main :: proc() {
 
 	rocket := read_rocket_data();
 
+	read_solar_system_data(planets);
+
 	fmt.println(rocket);
 
-	for planet in planets {
-		// fmt.println(planet);
-		fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
-		fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
-		fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
-	}
+	// for planet in planets {
+	// 	fmt.println(planet);
+	// 	fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
+	// 	fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
+	// 	fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
+	// }
+
+	// stage 3
+	// time to reach cruising vel
+	// distance from surface at cruising vel
+	// time of cruise
+	// distance from surface to start decel
+	// time to decelerate
+	// total travel time (+ days, h, m, s formatting)
+
+	p1 := planets[2];
+	p2 := planets[3];
+
+	travel_data := get_travel_data(p1, p2, rocket);
+
+	print_travel_data(travel_data);
 }
