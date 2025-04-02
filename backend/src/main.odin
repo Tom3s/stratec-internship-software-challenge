@@ -411,6 +411,10 @@ get_planet_position :: proc(planet: Planet, days: int) -> f64 {
 	return linalg.mod((360.0 / cast(f64) planet.period) * cast(f64) days, 360);
 }
 
+get_planet_position_rad :: proc(planet: Planet, days: int) -> f64 {
+	return linalg.mod((linalg.TAU / cast(f64) planet.period) * cast(f64) days, linalg.TAU);
+}
+
 
 // odin run ./backend/src -out:main.exe
 main :: proc() {
@@ -427,7 +431,7 @@ main :: proc() {
 
 	fmt.println(rocket);
 
-	day := 365;
+	day := 365 * 100;
 
 	for planet in planets {
 		// fmt.println(planet);
@@ -441,13 +445,13 @@ main :: proc() {
 		)
 	}
 
-	// stage 3
-	// time to reach cruising vel
-	// distance from surface at cruising vel
-	// time of cruise
-	// distance from surface to start decel
-	// time to decelerate
-	// total travel time (+ days, h, m, s formatting)
+	// stage 4
+	// step 1 day
+	// check for intersection
+	// no intersect -> get travel data
+	// skip travel data if dist > best
+	// better data -> save
+
 
 	// p1 := planets[2];
 	// p2 := planets[3];
