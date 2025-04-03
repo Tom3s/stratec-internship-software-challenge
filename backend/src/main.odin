@@ -288,6 +288,15 @@ get_distance_between :: proc(p1, p2: Planet, day: int = 0) -> f64 {
 	return linalg.distance(p1_pos, p2_pos);
 }
 
+get_complex_distance_between :: proc(p1, p2: Planet, start_day, travel_days: int) -> f64 {
+	// return linalg.abs(p1.orbital_radius - p2.orbital_radius) * ASTRONOMICAL_UNIT;
+
+	p1_pos: v2 = get_planet_position(p1, start_day);
+	p2_pos: v2 = get_planet_position(p2, start_day + travel_days);
+
+	return linalg.distance(p1_pos, p2_pos);
+}
+
 Time :: struct {
 	total_seconds: f64,
 
@@ -416,6 +425,120 @@ get_travel_data :: proc(p1, p2: Planet, rocket: Rocket, day: int = 0.0) -> Trave
 	}
 }
 
+Complex_Travel_Data :: struct {
+	p1, p2: Planet,
+	start_coord, end_coord: v2,
+	rocket: Rocket,
+
+	total_distance: f64,
+	accel_time: f64,
+	dist_from_surface: f64,
+	cruise_time: Time,
+	travel_time: Time,
+
+	cruising_velocity: f64,
+	start_day: int,
+	travel_days: int,
+}
+
+get_complex_travel_data :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket: Rocket, min_day: int) -> Complex_Travel_Data{
+	p1 := p1;
+	p2 := p2;
+	
+	cruising_vel := ms_to_kms(max(get_escape_velocity(p1), get_escape_velocity(p2)));
+
+	min_dist := abs(linalg.length(get_planet_position(p1, 0) - get_planet_position(p2, 0)));
+	max_dist := linalg.length(get_planet_position(p1, 0) + get_planet_position(p2, 0));
+
+	min_time := make_time(min_dist / cruising_vel);
+	max_time := make_time(max_dist / cruising_vel);
+
+	// fmt.println(min_time);
+	// fmt.println(max_time);
+
+	min_diff := min(cast(f64) p1.diameter * 0.5, cast(f64) p2.diameter * 0.5);
+	min_index := -1;
+	min_travel_time := -1;
+	min_travel_dist := math.F64_MAX
+
+	for day_offset in 0..=10*365 {
+		start_day := min_day + day_offset;
+		for i in min_time.days..=max_time.days {
+			future_day := start_day + i;
+
+			// p1_pos := get_planet_position(p1, start_day);
+			// p2_pos := get_planet_position(p2, future_day);
+
+			// dist := linalg.distance(p1_pos, p2_pos) - cast(f64) p1.diameter * 0.5 - cast(f64) p2.diameter * 0.5;
+			dist := get_complex_distance_between(p1, p2, start_day, i) - cast(f64) p1.diameter * 0.5 - cast(f64) p2.diameter * 0.5;
+			seconds := cast(f64) i * 24 * 60 * 60;
+
+			dist_covered := seconds * cruising_vel;
+
+			
+
+			if min_travel_dist > dist && abs(dist - dist_covered) < min(cast(f64) p1.diameter * 0.5, cast(f64) p2.diameter * 0.5){
+				if !verify_complex_travel(
+					p1, p2,
+					planets,
+					start_day, i,
+					cruising_vel,
+				) {
+					continue;
+				}
+
+				min_diff = abs(dist - dist_covered);
+				min_index = start_day;
+				min_travel_time = i;
+				min_travel_dist = dist;
+
+				// fmt.printfln("Distance covered with vel: \n%.3f\ndistance between planets: \n%.3f\nDifference: %.3f\n",
+				// 	dist, dist_covered, abs(dist - dist_covered)
+				// )
+			}
+		}
+	}
+
+	start_day := min_index;
+	travel_days := min_travel_time;
+
+	heavier_planet, lighter_planet: ^Planet;
+
+	if p1.relative_mass >= p2.relative_mass {
+		heavier_planet = &p1;
+		lighter_planet = &p2;
+	} else {
+		heavier_planet = &p2;
+		lighter_planet = &p1;
+	}
+
+	cruising_velocity := get_escape_velocity(heavier_planet^);
+	accel_time := get_time_to_reach_escape_velocity(heavier_planet^, rocket);
+	escape_distance := get_distance_until_escape_velocity(heavier_planet^, rocket) * 0.001;
+
+	total_dist := get_complex_distance_between(p1, p2, start_day, travel_days);
+	cruise_dist := total_dist - cast(f64) p1.diameter * 0.5 - cast(f64) p2.diameter * 0.5 - escape_distance * 2;
+
+	return Complex_Travel_Data{
+		p1 = p1,
+		p2 = p2,
+		start_coord = get_planet_position(p1, start_day),
+		end_coord = get_planet_position(p2, start_day + travel_days),
+		rocket = rocket,
+
+		accel_time = accel_time,
+		cruise_time = make_time(cruise_dist / ms_to_kms(cruising_velocity)),
+		dist_from_surface = escape_distance,
+		cruising_velocity = cruising_velocity,
+
+		start_day = start_day,
+		travel_days = travel_days,
+
+		total_distance = cruise_dist + escape_distance * 2,
+		travel_time = make_time(2 * accel_time + cruise_dist / ms_to_kms(cruising_velocity))
+	}
+}
+
 print_travel_data :: proc(data: Travel_Data) {
 	fmt.println("Information about travel between", data.p1.name, "and", data.p2.name, ":");
 	fmt.println("Day to start journey for best conditions:", data.day_of_start);
@@ -461,6 +584,33 @@ verify_travel_path :: proc(p1, p2: Planet, planets: [dynamic]Planet, day: int) -
 			if line_intersects_circle(
 				p1_pos, p2_pos, 
 				get_planet_position(planet, day),
+				cast(f64) planet.diameter * .5,
+			) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+verify_complex_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, start_day, travel_days: int, vel: f64) -> bool {
+	p1_pos := get_planet_position(p1, start_day);
+	p2_pos := get_planet_position(p2, start_day + travel_days);
+
+	closer_planet: f64 = min(p1.orbital_radius, p2.orbital_radius);
+	farther_planet: f64 = max(p1.orbital_radius, p2.orbital_radius);
+
+
+
+	for planet in planets {
+		if planet.orbital_radius > closer_planet && planet.orbital_radius < farther_planet {
+			orbit_radius := linalg.length(get_planet_position(planet, 0));
+			collision_day := make_time(orbit_radius / vel);
+
+			if line_intersects_circle(
+				p1_pos, p2_pos, 
+				get_planet_position(planet, collision_day.days),
 				cast(f64) planet.diameter * .5,
 			) {
 				return false;
@@ -523,20 +673,28 @@ main :: proc() {
 	// 	)
 	// }
 
-	for i in 0..<len(planets) {
-		for j in i+1..<len(planets) {
+	// for i in 0..<len(planets) {
+	// 	for j in i+1..<len(planets) {
 
-			p1 := planets[i];
-			p2 := planets[j];
+	// 		p1 := planets[i];
+	// 		p2 := planets[j];
 			
-			travel_data := get_best_travel(p1, p2, planets, rocket, day);
+	// 		travel_data := get_best_travel(p1, p2, planets, rocket, day);
 			
-			print_travel_data(travel_data);
-			fmt.println();
-		}
-	}
+	// 		print_travel_data(travel_data);
+	// 		fmt.println();
+	// 	}
+	// }
 	
+	p1 := planets[2];
+	p2 := planets[5];
 
+	travel_data: Complex_Travel_Data = get_complex_travel_data(
+		p1, p2, planets,
+		rocket, day,
+	)
+
+	fmt.printfln("%#v", travel_data);
 
 
 
