@@ -7,6 +7,10 @@ import "core:strconv"
 import "core:math/linalg"
 import "core:math"
 
+import "core:thread"
+import "core:net"
+import "core:sync"
+
 // @(static) 
 earth_mass: f64 = 0.0;
 
@@ -645,6 +649,9 @@ get_best_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket: Rocket
 	return best_travel;
 }
 
+ENDPOINT := net.Endpoint{address = net.IP4_Address{0, 0, 0, 0}, port = 2025};
+
+packet_queue: Client_Packet_Queue;
 
 // odin run ./backend/src -out:main.exe
 main :: proc() {
@@ -659,7 +666,43 @@ main :: proc() {
 
 	read_solar_system_data(planets);
 
-	day := 365 * 100;
+	packet_queue = make_client_packet_queue();
+
+	thread.create_and_start(accept_connections);
+
+	// p1 := planets[2];
+	// p2 := planets[5];
+
+	// travel_data: Complex_Travel_Data = get_complex_travel_data(
+	// 	p1, p2, planets,
+	// 	rocket, 10000,
+	// )
+
+	// fmt.printfln("%#v", travel_data);
+
+	for {
+		// TODO: "frame" allocator
+		// handle inbound packets
+		for client_packet_queue_has(&packet_queue){
+			packet := client_packet_queue_pop(&packet_queue);
+			decoded_packet := packet.data;
+			// append(&decoded_packet_datas, decoded_packet);
+			// update state	
+			switch data in decoded_packet {
+				case Request_All_Data:
+					all_data_packet := encode_all_data(planets, rocket);
+
+					send_packet(data.socket, all_data_packet);
+				case Request_Travel_Data:
+				case Empty_Packet_Data:
+					fmt.println("[main] Empty packet huh?")
+				case Exit_Data:
+					fmt.println("[main] Client disconnected")
+			}
+		}
+	}
+
+	// day := 365 * 100;
 
 	// for planet in planets {
 	// 	// fmt.println(planet);
@@ -686,15 +729,15 @@ main :: proc() {
 	// 	}
 	// }
 	
-	p1 := planets[2];
-	p2 := planets[5];
+	// p1 := planets[2];
+	// p2 := planets[5];
 
-	travel_data: Complex_Travel_Data = get_complex_travel_data(
-		p1, p2, planets,
-		rocket, day,
-	)
+	// travel_data: Complex_Travel_Data = get_complex_travel_data(
+	// 	p1, p2, planets,
+	// 	rocket, day,
+	// )
 
-	fmt.printfln("%#v", travel_data);
+	// fmt.printfln("%#v", travel_data);
 
 
 
