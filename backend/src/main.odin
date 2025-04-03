@@ -5,6 +5,7 @@ import "core:os"
 import "core:strings"
 import "core:strconv"
 import "core:math/linalg"
+import "core:math"
 
 // @(static) 
 earth_mass: f64 = 0.0;
@@ -273,8 +274,18 @@ read_solar_system_data :: proc(planets: [dynamic]Planet, filepath: string = "./S
 	return planets;
 }
 
-get_distance_between :: proc(p1, p2: Planet) -> f64 {
-	return linalg.abs(p1.orbital_radius - p2.orbital_radius) * ASTRONOMICAL_UNIT;
+get_planet_position :: proc(planet: Planet, day: int) -> v2 {
+	angle := get_planet_angle_rad(planet, day);
+	return {linalg.cos(angle), linalg.sin(angle)} * planet.orbital_radius * ASTRONOMICAL_UNIT;
+}
+
+get_distance_between :: proc(p1, p2: Planet, day: int = 0) -> f64 {
+	// return linalg.abs(p1.orbital_radius - p2.orbital_radius) * ASTRONOMICAL_UNIT;
+
+	p1_pos: v2 = get_planet_position(p1, day);
+	p2_pos: v2 = get_planet_position(p2, day);
+
+	return linalg.distance(p1_pos, p2_pos);
 }
 
 Time :: struct {
@@ -327,13 +338,16 @@ Travel_Data :: struct {
 	dist_to_surface: f64,
 	decel_time: f64,
 	travel_time: Time,
+
+	cruising_velocity: f64,
+	day_of_start: int,
 }
 
-get_travel_data :: proc(p1, p2: Planet, rocket: Rocket) -> Travel_Data {
+get_travel_data :: proc(p1, p2: Planet, rocket: Rocket, day: int = 0.0) -> Travel_Data {
 	p1 := p1;
 	p2 := p2;
 	// calc distance between planets
-	d := get_distance_between(p1, p2);
+	d := get_distance_between(p1, p2, day);
 	// fmt.printfln("%.3f", d);
 
 	// cruising_velocity := 0.0;
@@ -369,24 +383,44 @@ get_travel_data :: proc(p1, p2: Planet, rocket: Rocket) -> Travel_Data {
 	travel_time := cruise_time + accel_time + s_accel_time + s_t;
 
 	// time := make_time(travel_time);
-
-	return Travel_Data{
-		p1 = p1,
-		p2 = p2,
-		total_distance = d - cast(f64) p1.diameter * .5 - cast(f64) p2.diameter * .5,
-		rocket = rocket,
-		accel_time = accel_time,
-		dist_from_surface = escape_distance,
-		cruise_time = make_time(cruise_time),
-		dist_to_surface = dist_to_surface,
-		decel_time = s_accel_time + s_t,
-		travel_time = make_time(travel_time),
-	};
+	if p1.relative_mass >= p2.relative_mass {
+		return Travel_Data{
+			p1 = p1,
+			p2 = p2,
+			total_distance = d - cast(f64) p1.diameter * .5 - cast(f64) p2.diameter * .5,
+			rocket = rocket,
+			accel_time = accel_time,
+			dist_from_surface = escape_distance,
+			cruise_time = make_time(cruise_time),
+			dist_to_surface = dist_to_surface,
+			decel_time = s_accel_time + s_t,
+			travel_time = make_time(travel_time),
+			cruising_velocity = cruising_velocity,
+			day_of_start = day,
+		};
+	} else {
+		return Travel_Data{
+			p1 = p1,
+			p2 = p2,
+			total_distance = d - cast(f64) p1.diameter * .5 - cast(f64) p2.diameter * .5,
+			rocket = rocket,
+			accel_time = s_accel_time + s_t,
+			dist_from_surface = dist_to_surface,
+			cruise_time = make_time(cruise_time),
+			dist_to_surface = escape_distance,
+			decel_time = accel_time,
+			travel_time = make_time(travel_time),
+			cruising_velocity = cruising_velocity,
+			day_of_start = day,
+		};
+	}
 }
 
 print_travel_data :: proc(data: Travel_Data) {
-	fmt.println("Information about travel between", data.p1.name, "and", data.p2.name);
+	fmt.println("Information about travel between", data.p1.name, "and", data.p2.name, ":");
+	fmt.println("Day to start journey for best conditions:", data.day_of_start);
 	fmt.printfln("Time to reach cruising velocity from %s: %.3fs", data.p1.name, data.accel_time);
+	fmt.printfln("Nominal cruising velocity: %.3fs", data.cruising_velocity);
 	fmt.printfln("Distance from %s's surface at cruising velocity: %.3f km", data.p1.name, data.dist_from_surface);
 	fmt.printfln("Cruising time: %i days, %i h, %i m, %i s (%.3f total seconds)",
 		data.cruise_time.days,
@@ -407,12 +441,58 @@ print_travel_data :: proc(data: Travel_Data) {
 	);
 }
 
-get_planet_position :: proc(planet: Planet, days: int) -> f64 {
+get_planet_angle :: proc(planet: Planet, days: int) -> f64 {
 	return linalg.mod((360.0 / cast(f64) planet.period) * cast(f64) days, 360);
 }
 
-get_planet_position_rad :: proc(planet: Planet, days: int) -> f64 {
+get_planet_angle_rad :: proc(planet: Planet, days: int) -> f64 {
 	return linalg.mod((linalg.TAU / cast(f64) planet.period) * cast(f64) days, linalg.TAU);
+}
+
+verify_travel_path :: proc(p1, p2: Planet, planets: [dynamic]Planet, day: int) -> bool {
+	p1_pos := get_planet_position(p1, day);
+	p2_pos := get_planet_position(p2, day);
+
+	closer_planet: f64 = min(p1.orbital_radius, p2.orbital_radius);
+	farther_planet: f64 = max(p1.orbital_radius, p2.orbital_radius);
+
+	for planet in planets {
+		if planet.orbital_radius > closer_planet && planet.orbital_radius < farther_planet {
+			if line_intersects_circle(
+				p1_pos, p2_pos, 
+				get_planet_position(planet, day),
+				cast(f64) planet.diameter * .5,
+			) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+get_best_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket: Rocket, day: int) -> Travel_Data {
+	shortest_distance: f64 = math.F64_MAX;
+	best_travel: Travel_Data;
+	// stage 4
+	// step 1 day
+	for i in 0..=365*10 {
+		current_day := day + i;
+
+		// skip travel data if dist > best
+		if get_distance_between(p1, p2, current_day) >= shortest_distance do continue;
+		
+		// check for intersection
+		if !verify_travel_path(p1, p2, planets, current_day) do continue;
+	
+		// no intersect -> get travel data
+		best_travel = get_travel_data(p1, p2, rocket, current_day);
+		shortest_distance = get_distance_between(p1, p2, current_day);
+		
+		// better data -> save
+	}
+
+	return best_travel;
 }
 
 
@@ -429,32 +509,36 @@ main :: proc() {
 
 	read_solar_system_data(planets);
 
-	fmt.println(rocket);
-
 	day := 365 * 100;
 
-	for planet in planets {
-		// fmt.println(planet);
-		// fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
-		// fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
-		// fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
-		fmt.printfln("%s's position in degrees afetr %i days: %.3f", 
-			planet.name,
-			day,
-			get_planet_position(planet, day),
-		)
+	// for planet in planets {
+	// 	// fmt.println(planet);
+	// 	// fmt.printfln("%s's escape velocity: %.3f km/s ", planet.name, ms_to_kms(get_escape_velocity(planet)));
+	// 	// fmt.printfln("Time to reach escape velocity: %.3f s", get_time_to_reach_escape_velocity(planet, rocket));
+	// 	// fmt.printfln("Distance travelled until escape: %.3f km (from surface)\n", get_distance_until_escape_velocity(planet, rocket) * 0.001);
+	// 	fmt.printfln("%s's position in degrees afetr %i days: %.3f", 
+	// 		planet.name,
+	// 		day,
+	// 		get_planet_angle(planet, day),
+	// 	)
+	// }
+
+	for i in 0..<len(planets) {
+		for j in i+1..<len(planets) {
+
+			p1 := planets[i];
+			p2 := planets[j];
+			
+			travel_data := get_best_travel(p1, p2, planets, rocket, day);
+			
+			print_travel_data(travel_data);
+			fmt.println();
+		}
 	}
-
-	// stage 4
-	// step 1 day
-	// check for intersection
-	// no intersect -> get travel data
-	// skip travel data if dist > best
-	// better data -> save
+	
 
 
-	// p1 := planets[2];
-	// p2 := planets[3];
+
 
 	// travel_data := get_travel_data(p1, p2, rocket);
 
