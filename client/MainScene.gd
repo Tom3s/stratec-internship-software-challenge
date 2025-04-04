@@ -12,6 +12,7 @@ class_name MainScene
 @onready var get_travel_button: Button = %GetTravelButton
 @onready var travel_status_label: Label = %TravelStatusLabel
 @onready var start_sim_button: Button = %StartSimButton
+@onready var travel_info_label: Label = %TravelInfoLabel
 
 
 @onready var planet_parent: Node2D = %Planets
@@ -108,6 +109,7 @@ class Travel_Data:
 	var cruise_vel: float
 	var start_day: int
 	var travel_days: int
+	var dist_from_surface: float
 
 var travel_data: Travel_Data
 
@@ -117,6 +119,7 @@ func handle_travel_data(
 	start_coord: Vector2, end_coord: Vector2,
 	accel_time: float, cruise_vel: float,
 	start_day: int, travel_days: int,
+	dist_from_surface: float,
 ) -> void:
 	travel_status_label.text = "Travel between " + p1 + " and " + p2 + " ready!"
 	start_sim_button.disabled = false
@@ -133,6 +136,7 @@ func handle_travel_data(
 	travel_data.cruise_vel = cruise_vel
 	travel_data.start_day = start_day
 	travel_data.travel_days = travel_days
+	travel_data.dist_from_surface = dist_from_surface
 
 func start_simulation() -> void:
 	var rocket: Rocket = %Rocket
@@ -140,7 +144,7 @@ func start_simulation() -> void:
 	var dir := (travel_data.to_coord - travel_data.start_coord).normalized()
 
 	rocket.start_coord = travel_data.start_coord + dir * travel_data.from.diameter * 0.5 * GlobalNames.system_scale
-	rocket.end_coord = travel_data.to_coord + dir * travel_data.to.diameter * 0.5 * GlobalNames.system_scale
+	rocket.end_coord = travel_data.to_coord - dir * travel_data.to.diameter * 0.5 * GlobalNames.system_scale
 	rocket.start_day = travel_data.start_day
 	rocket.travel_days = travel_data.travel_days
 
@@ -148,6 +152,20 @@ func start_simulation() -> void:
 
 	rocket.visible = true
 	# GlobalNames.in_simulation = true
+
+# 	Time to reach cruising velocity: 1 s
+# Distance from surface to start decelerating: 1 km
+# Total Travel time: 123 days
+# Total travel distance: 10489172 km
+	travel_info_label.text = "Time to reach cruising velocity: " + str(travel_data.accel_time) + " s\n"
+	travel_info_label.text += "Distance from surface to start decelerating: " + str(travel_data.dist_from_surface) + " km\n"
+	travel_info_label.text += "Total Travel time: " + str(travel_data.travel_days) + " days\n"
+	travel_info_label.text += "Total travel distance: " + str(
+		(travel_data.to_coord - travel_data.start_coord).length() - travel_data.from.diameter * 0.5 - travel_data.to.diameter * 0.5
+	) + " km\n"
+	travel_info_label.text += "Cruising velocity during travel: " + str(travel_data.cruise_vel * 0.001) + " km/s"
+
+
 
 	GlobalNames.current_day = travel_data.start_day
 

@@ -253,6 +253,7 @@ encode_travel_data :: proc(travel_data: Complex_Travel_Data) -> []byte {
 
 	append_elems(&packet_data, ..bytes_of(&travel_data.accel_time));
 	append_elems(&packet_data, ..bytes_of(&travel_data.cruising_velocity));
+	append_elems(&packet_data, ..bytes_of(&travel_data.dist_from_surface));
 
 	packet_len := cast(i16) (len(packet_data) - 3);
 	copy(packet_data[1:3], bytes_of(&packet_len)[:])

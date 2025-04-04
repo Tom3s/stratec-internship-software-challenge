@@ -39,6 +39,7 @@ signal travel_data_received(
 	start_coord: Vector2, end_coord: Vector2,
 	accel_time: float, cruise_vel: float,
 	start_day: int, travel_days: int,
+	dist_from_surface: float,
 )
 
 var incoming_thread: Thread
@@ -369,9 +370,11 @@ func decode_packet(packet_type: SERVER_PACKET_TYPE, data: PackedByteArray) -> vo
 			var accel_time := data.decode_double(offset)
 			offset += 8
 			var cruise_vel := data.decode_double(offset)
+			offset += 8
+			var dist_from_surface := data.decode_double(offset)
 			# offset += 8
 
-			call_deferred("emit_signal", "travel_data_received", from_planet, to_planet, start, end, accel_time, cruise_vel, start_day, travel_days)
+			call_deferred("emit_signal", "travel_data_received", from_planet, to_planet, start, end, accel_time, cruise_vel, start_day, travel_days, dist_from_surface)
 
 # 			p1_id = data.decode_s64(0)
 # 			var p1_pieces: Array[Piece]

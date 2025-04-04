@@ -75,6 +75,13 @@ layout_mode = 2
 disabled = true
 text = "Start Simulation"
 
+[node name="TravelInfoLabel" type="Label" parent="UI/VBoxContainer/PanelContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 10
+theme_override_font_sizes/font_size = 10
+horizontal_alignment = 2
+
 [node name="Control" type="Control" parent="UI/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
