@@ -1,0 +1,14 @@
+TextureRect
+Button
+Label
+VSeparator
+OptionButton
+Control
+VBoxContainer
+HSlider
+PanelContainer
+Panel
+HBoxContainer
+Container
+Sprite2D
+Parallax2D

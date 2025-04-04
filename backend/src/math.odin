@@ -6,9 +6,9 @@ import "core:math/linalg"
 v2 :: [2]f64;
 v3 :: [3]f64;
 v4 :: [4]f64;
-v2i :: [2]int;
-v3i :: [3]int;
-v4i :: [4]int;
+v2i :: [2]i32;
+v3i :: [3]i32;
+v4i :: [4]i32;
 
 remap :: proc(x, froma, toa, fromb, tob: f64) -> f64 {
 	return linalg.lerp(

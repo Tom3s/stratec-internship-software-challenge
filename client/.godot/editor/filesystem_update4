@@ -1,0 +1,11 @@
+res://Global/Network.gd
+res://Global/GlobalNames.gd
+res://MainScene.gd
+res://MainScene.tscn
+res://Planet.gd
+res://Planet.tscn
+res://Camera2D.gd
+res://ConstantSizeLabel.gd
+res://Parallax.gd
+res://Rocket.tscn
+res://Rocket.gd

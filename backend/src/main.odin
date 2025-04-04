@@ -19,15 +19,15 @@ ASTRONOMICAL_UNIT: f64 = 149597870.7;
 
 Planet :: struct {
 	name: string,
-	diameter: int,
+	diameter: i32,
 	relative_mass: f64,
 
-	period: int,
+	period: i32,
 	orbital_radius: f64,
 }
 
 Rocket :: struct {
-	nr_engines: int,
+	nr_engines: i32,
 	acceleration: f64,
 }
 
@@ -113,7 +113,7 @@ read_planetary_data :: proc(filepath: string = "./Planetary_Data.txt") -> [dynam
 				return {};
 			}
 
-			diameter := strconv.atoi(planet_data[3]);
+			diameter := cast(i32) strconv.atoi(planet_data[3]);
 
 			if planet_data[4] != "km," {
 				fmt.println("Invalid planet data format; Wrong unit for diameter");
@@ -183,7 +183,7 @@ read_rocket_data :: proc(filepath: string = "./Rocket_Data.txt") -> Rocket {
 
 	nr_engines_str, _ := strings.remove_all(rocket_data[0], "Number of rocket engines: ");
 
-	nr_engines := strconv.atoi(nr_engines_str);
+	nr_engines := cast(i32) strconv.atoi(nr_engines_str);
 
 	if !strings.has_prefix(rocket_data[1], "Acceleration per engine: ") {
 		fmt.println("Invalid rocket data format; Missing acceleration");
@@ -207,7 +207,7 @@ read_rocket_data :: proc(filepath: string = "./Rocket_Data.txt") -> Rocket {
 
 // SS_Data :: struct {
 // 	name: string,
-// 	period: int,
+// 	period: i32,
 // 	radius: f64,
 // }
 
@@ -238,7 +238,7 @@ read_solar_system_data :: proc(planets: [dynamic]Planet, filepath: string = "./S
 			return {};
 		}
 
-		period := strconv.atoi(planet_data[3]);
+		period := cast(i32) strconv.atoi(planet_data[3]);
 
 		if planet_data[4] != "days," {
 			fmt.println("Invalid solar system data format; Wrong unit for period");
@@ -278,12 +278,12 @@ read_solar_system_data :: proc(planets: [dynamic]Planet, filepath: string = "./S
 	return planets;
 }
 
-get_planet_position :: proc(planet: Planet, day: int) -> v2 {
+get_planet_position :: proc(planet: Planet, day: i32) -> v2 {
 	angle := get_planet_angle_rad(planet, day);
 	return {linalg.cos(angle), linalg.sin(angle)} * planet.orbital_radius * ASTRONOMICAL_UNIT;
 }
 
-get_distance_between :: proc(p1, p2: Planet, day: int = 0) -> f64 {
+get_distance_between :: proc(p1, p2: Planet, day: i32 = 0) -> f64 {
 	// return linalg.abs(p1.orbital_radius - p2.orbital_radius) * ASTRONOMICAL_UNIT;
 
 	p1_pos: v2 = get_planet_position(p1, day);
@@ -292,7 +292,7 @@ get_distance_between :: proc(p1, p2: Planet, day: int = 0) -> f64 {
 	return linalg.distance(p1_pos, p2_pos);
 }
 
-get_complex_distance_between :: proc(p1, p2: Planet, start_day, travel_days: int) -> f64 {
+get_complex_distance_between :: proc(p1, p2: Planet, start_day, travel_days: i32) -> f64 {
 	// return linalg.abs(p1.orbital_radius - p2.orbital_radius) * ASTRONOMICAL_UNIT;
 
 	p1_pos: v2 = get_planet_position(p1, start_day);
@@ -304,14 +304,14 @@ get_complex_distance_between :: proc(p1, p2: Planet, start_day, travel_days: int
 Time :: struct {
 	total_seconds: f64,
 
-	seconds: int,
-	minutes: int,
-	hours: int,
-	days: int,
+	seconds: i32,
+	minutes: i32,
+	hours: i32,
+	days: i32,
 }
 
 make_time :: proc(s: f64) -> Time {
-	t := cast(int) s;
+	t := cast(i32) s;
 
 	time: Time;
 	time.total_seconds = s;
@@ -353,10 +353,10 @@ Travel_Data :: struct {
 	travel_time: Time,
 
 	cruising_velocity: f64,
-	day_of_start: int,
+	day_of_start: i32,
 }
 
-get_travel_data :: proc(p1, p2: Planet, rocket: Rocket, day: int = 0.0) -> Travel_Data {
+get_travel_data :: proc(p1, p2: Planet, rocket: Rocket, day: i32 = 0.0) -> Travel_Data {
 	p1 := p1;
 	p2 := p2;
 	// calc distance between planets
@@ -441,11 +441,11 @@ Complex_Travel_Data :: struct {
 	travel_time: Time,
 
 	cruising_velocity: f64,
-	start_day: int,
-	travel_days: int,
+	start_day: i32,
+	travel_days: i32,
 }
 
-get_complex_travel_data :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket: Rocket, min_day: int) -> Complex_Travel_Data{
+get_complex_travel_data :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket: Rocket, min_day: i32) -> Complex_Travel_Data{
 	p1 := p1;
 	p2 := p2;
 	
@@ -461,12 +461,12 @@ get_complex_travel_data :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket
 	// fmt.println(max_time);
 
 	min_diff := min(cast(f64) p1.diameter * 0.5, cast(f64) p2.diameter * 0.5);
-	min_index := -1;
-	min_travel_time := -1;
+	min_index: i32 = -1;
+	min_travel_time: i32 = -1;
 	min_travel_dist := math.F64_MAX
 
 	for day_offset in 0..=10*365 {
-		start_day := min_day + day_offset;
+		start_day := min_day + cast(i32) day_offset;
 		for i in min_time.days..=max_time.days {
 			future_day := start_day + i;
 
@@ -493,7 +493,7 @@ get_complex_travel_data :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket
 
 				min_diff = abs(dist - dist_covered);
 				min_index = start_day;
-				min_travel_time = i;
+				min_travel_time = cast(i32) i;
 				min_travel_dist = dist;
 
 				// fmt.printfln("Distance covered with vel: \n%.3f\ndistance between planets: \n%.3f\nDifference: %.3f\n",
@@ -503,8 +503,8 @@ get_complex_travel_data :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket
 		}
 	}
 
-	start_day := min_index;
-	travel_days := min_travel_time;
+	start_day: i32 = min_index;
+	travel_days: i32 = min_travel_time;
 
 	heavier_planet, lighter_planet: ^Planet;
 
@@ -568,15 +568,15 @@ print_travel_data :: proc(data: Travel_Data) {
 	);
 }
 
-get_planet_angle :: proc(planet: Planet, days: int) -> f64 {
+get_planet_angle :: proc(planet: Planet, days: i32) -> f64 {
 	return linalg.mod((360.0 / cast(f64) planet.period) * cast(f64) days, 360);
 }
 
-get_planet_angle_rad :: proc(planet: Planet, days: int) -> f64 {
+get_planet_angle_rad :: proc(planet: Planet, days: i32) -> f64 {
 	return linalg.mod((linalg.TAU / cast(f64) planet.period) * cast(f64) days, linalg.TAU);
 }
 
-verify_travel_path :: proc(p1, p2: Planet, planets: [dynamic]Planet, day: int) -> bool {
+verify_travel_path :: proc(p1, p2: Planet, planets: [dynamic]Planet, day: i32) -> bool {
 	p1_pos := get_planet_position(p1, day);
 	p2_pos := get_planet_position(p2, day);
 
@@ -598,7 +598,7 @@ verify_travel_path :: proc(p1, p2: Planet, planets: [dynamic]Planet, day: int) -
 	return true;
 }
 
-verify_complex_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, start_day, travel_days: int, vel: f64) -> bool {
+verify_complex_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, start_day, travel_days: i32, vel: f64) -> bool {
 	p1_pos := get_planet_position(p1, start_day);
 	p2_pos := get_planet_position(p2, start_day + travel_days);
 
@@ -625,13 +625,13 @@ verify_complex_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, start_da
 	return true;
 }
 
-get_best_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket: Rocket, day: int) -> Travel_Data {
+get_best_travel :: proc(p1, p2: Planet, planets: [dynamic]Planet, rocket: Rocket, day: i32) -> Travel_Data {
 	shortest_distance: f64 = math.F64_MAX;
 	best_travel: Travel_Data;
 	// stage 4
 	// step 1 day
 	for i in 0..=365*10 {
-		current_day := day + i;
+		current_day := day + cast(i32) i;
 
 		// skip travel data if dist > best
 		if get_distance_between(p1, p2, current_day) >= shortest_distance do continue;
@@ -686,6 +686,8 @@ main :: proc() {
 		for client_packet_queue_has(&packet_queue){
 			packet := client_packet_queue_pop(&packet_queue);
 			decoded_packet := packet.data;
+			// fmt.printfln("%#v", decoded_packet);
+
 			// append(&decoded_packet_datas, decoded_packet);
 			// update state	
 			switch data in decoded_packet {
@@ -694,10 +696,29 @@ main :: proc() {
 
 					send_packet(data.socket, all_data_packet);
 				case Request_Travel_Data:
+					p1, p2: Planet;
+
+					for planet in planets {
+						if data.planet1 == planet.name {
+							p1 = planet;
+						} else if data.planet2 == planet.name {
+							p2 = planet;
+						}
+					}
+
+					travel_data: Complex_Travel_Data = get_complex_travel_data(
+						p1, p2, planets,
+						rocket, data.start_day,
+					)
+
+					travel_data_packet := encode_travel_data(travel_data)
+
+					send_packet(data.socket, travel_data_packet);
+
 				case Empty_Packet_Data:
-					fmt.println("[main] Empty packet huh?")
+					fmt.println("[main] Empty packet huh?");
 				case Exit_Data:
-					fmt.println("[main] Client disconnected")
+					fmt.println("[main] Client disconnected");
 			}
 		}
 	}

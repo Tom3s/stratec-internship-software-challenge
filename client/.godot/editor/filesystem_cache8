@@ -1,0 +1,17 @@
+ea4bc82a6ad023ab7ee23ee620429895
+::res://::1743728183
+Camera2D.gd::GDScript::-1::1743715123::0::1::::<>Camera2D<>::
+ConstantSizeLabel.gd::GDScript::-1::1743713962::0::1::::<>Label<>::
+icon.svg::CompressedTexture2D::4787712919097926378::1743708235::1743708242::1::::<><>::
+MainScene.gd::GDScript::-1::1743727507::0::1::::MainScene<>Node2D<>::
+MainScene.tscn::PackedScene::7974779148716798096::1743727510::0::1::::<><>::res://MainScene.gd<>res://Camera2D.gd<>uid://bstfcadtrpwn2::::res://Global/sky_seamless_texture_5929.jpg
+Parallax.gd::GDScript::-1::1743717152::0::1::::<>TextureRect<>::
+Planet.gd::GDScript::-1::1743727581::0::1::::Planet_Object<>Node2D<>::
+Planet.tscn::PackedScene::8754934242413818190::1743727510::0::1::::<><>::res://Planet.gd<>res://ConstantSizeLabel.gd
+Rocket.gd::GDScript::-1::1743728074::0::1::::Planet_Object<>Node2D<>::
+Rocket.tscn::PackedScene::7784097463121896025::1743728106::0::1::::<><>::res://Rocket.gd<>res://ConstantSizeLabel.gd
+::res://Global/::1743728183
+1486162.png::CompressedTexture2D::1887189983523524277::1743728181::1743728183::1::::<><>::
+GlobalNames.gd::GDScript::-1::1743722691::0::1::::<>Node<>::
+Network.gd::GDScript::-1::1743726988::0::1::::<>Node<>::
+sky_seamless_texture_5929.jpg::CompressedTexture2D::3689350208577481301::1743715458::1743715459::1::::<><>::

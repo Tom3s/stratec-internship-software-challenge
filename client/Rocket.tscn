@@ -1,0 +1,44 @@
+[gd_scene load_steps=4 format=3 uid="uid://di5w7h3dmkkb6"]
+
+[ext_resource type="Script" path="res://Rocket.gd" id="1_gpngy"]
+[ext_resource type="Script" path="res://ConstantSizeLabel.gd" id="2_53mrb"]
+[ext_resource type="Texture2D" uid="uid://15f0ji6shrur" path="res://Global/1486162.png" id="3_7o03t"]
+
+[node name="Rocket" type="Node2D"]
+script = ExtResource("1_gpngy")
+
+[node name="Label" type="Label" parent="."]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -11.5
+offset_right = 20.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+text = "Rocket"
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("2_53mrb")
+
+[node name="Texture" type="TextureRect" parent="."]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -686.0
+offset_top = -1200.0
+offset_right = 686.0
+offset_bottom = 1200.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(0.075, 0.075)
+pivot_offset = Vector2(686, 1200)
+texture = ExtResource("3_7o03t")

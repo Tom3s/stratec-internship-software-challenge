@@ -40,6 +40,7 @@ client_packet_queue_has :: proc(q: ^Client_Packet_Queue) -> bool{
 
 client_packet_queue_pop :: proc(q: ^Client_Packet_Queue) -> Client_Packet{
     sync.lock(&q.mutex);
+    defer sync.unlock(&q.mutex);
 
 	return pop_front(&q.queue);
 }
@@ -76,7 +77,7 @@ Request_Travel_Data :: struct {
 
 	planet1: string,
 	planet2: string,
-	start_day: int,
+	start_day: i32,
 }
 
 Decoded_Packet :: union #no_nil {
@@ -95,7 +96,7 @@ accept_connections :: proc() {
 		panic("");
 	}
 
-	for {
+	for i in 0..<1 {
 		client_socket, endpoint, err := net.accept_tcp(listener);
 		if err != nil{
 			fmt.println("[main] Error at accepting clients", err);
@@ -118,7 +119,7 @@ handle_incoming_packets :: proc(client_data: rawptr){
 	// This loops till our client wants to disconnect
 	for {
 		// get header
-		packet_header: [2]byte;
+		packet_header: [3]byte;
 		_ ,err := net.recv_tcp(scd.socket, packet_header[:]);
 		if err != nil {
 			fmt.panicf("error while recieving data %s", err);
@@ -127,7 +128,7 @@ handle_incoming_packets :: proc(client_data: rawptr){
 		
 		// get data
 		packet_type: CLIENT_PACKET_TYPE = cast(CLIENT_PACKET_TYPE) packet_header[0];
-		packet_data_len: u8 = packet_header[1];
+		packet_data_len: u16 = slice.to_type(packet_header[1:3], u16);
 		packet_data: []byte = make([]byte, packet_data_len);
 		fmt.println("[communication] Received packet: ", packet_type, "(len: ", packet_data_len, ")");
 		if packet_type == .EXIT {
@@ -143,7 +144,9 @@ handle_incoming_packets :: proc(client_data: rawptr){
 }
 
 send_packet :: proc(socket: net.TCP_Socket, data: []byte) {
-	_, err := net.send_tcp(socket, data[:]);
+	sent, err := net.send_tcp(socket, data[:]);
+
+	fmt.println("[communication] Sent", sent, "bytes of", cast(SERVER_PACKET_TYPE) data[0], "packet"); // (total bytes: ", len(data) - 2)
 		
 	if err != nil {
 		// fmt.panicf("error while recieving data %s", err);
@@ -181,8 +184,8 @@ decode_request_travel :: proc(data: []byte, socket: net.TCP_Socket) -> Request_T
 	
 	p2_len := cast(u8) data[p1_len + 1];
 	p2_name := strings.clone_from_bytes(data[p1_len + 2:][:p2_len], context.allocator);
-
-	start_day := slice.to_type(data[p1_len + p2_len + 2:][:4], int);
+	
+	start_day := slice.to_type(data[p1_len + p2_len + 2:][:4], i32);
 
 
 	return Request_Travel_Data{
@@ -197,8 +200,8 @@ decode_request_travel :: proc(data: []byte, socket: net.TCP_Socket) -> Request_T
 
 encode_all_data :: proc(planets: [dynamic]Planet, rocket: Rocket) -> []byte {
 	rocket := rocket;
-	
-	packet_data := make([dynamic]byte, 2);
+
+	packet_data := make([dynamic]byte, 3);
 	packet_data[0] = cast(byte) SERVER_PACKET_TYPE.SOLAR_SYSTEM_DATA;
 
 	append_elems(&packet_data, ..bytes_of(&earth_mass));
@@ -207,7 +210,8 @@ encode_all_data :: proc(planets: [dynamic]Planet, rocket: Rocket) -> []byte {
 	
 	append_elems(&packet_data, ..bytes_of(&rocket.acceleration));
 	append_elems(&packet_data, ..bytes_of(&rocket.nr_engines));
-	// append(&packet_data, cast(u8) len(rocket.nr_engines));
+	
+	append(&packet_data, cast(u8) len(planets));
 
 	for &planet in planets {
 		append(&packet_data, cast(u8) len(planet.name));
@@ -219,10 +223,46 @@ encode_all_data :: proc(planets: [dynamic]Planet, rocket: Rocket) -> []byte {
 		append_elems(&packet_data, ..bytes_of(&planet.orbital_radius));
 	}
 
-	packet_data[1] = cast(byte) len(packet_data) - 2;
+	// packet_data[1] = cast(byte) len(packet_data) - 2;
+	packet_len := cast(i16) (len(packet_data) - 3);
+	copy(packet_data[1:3], bytes_of(&packet_len)[:])
+
+	// fmt.println(slice.to_type(packet_data[1:3], i16));
 
 	return slice.reinterpret([]byte, packet_data[:]);
 }
+
+encode_travel_data :: proc(travel_data: Complex_Travel_Data) -> []byte {
+	travel_data := travel_data
+
+	packet_data := make([dynamic]byte, 3);
+	packet_data[0] = cast(byte) SERVER_PACKET_TYPE.TRAVEL_DATA;
+
+	append(&packet_data, cast(u8) len(travel_data.p1.name));
+	append_elem_string(&packet_data, travel_data.p1.name);
+	append(&packet_data, cast(u8) len(travel_data.p2.name));
+	append_elem_string(&packet_data, travel_data.p2.name);
+	
+	append_elems(&packet_data, ..bytes_of(&travel_data.start_coord.x));
+	append_elems(&packet_data, ..bytes_of(&travel_data.start_coord.y));
+	append_elems(&packet_data, ..bytes_of(&travel_data.end_coord.x));
+	append_elems(&packet_data, ..bytes_of(&travel_data.end_coord.y));
+	
+	append_elems(&packet_data, ..bytes_of(&travel_data.start_day));
+	append_elems(&packet_data, ..bytes_of(&travel_data.travel_days));
+
+	append_elems(&packet_data, ..bytes_of(&travel_data.accel_time));
+	append_elems(&packet_data, ..bytes_of(&travel_data.cruising_velocity));
+
+	packet_len := cast(i16) (len(packet_data) - 3);
+	copy(packet_data[1:3], bytes_of(&packet_len)[:])
+
+	// fmt.println(slice.to_type(packet_data[1:3], i16));
+
+	return slice.reinterpret([]byte, packet_data[:]);
+}
+
+
 
 // Credit: Ferenc a fonok
 bytes_of :: proc(data: ^$T) -> []byte{
