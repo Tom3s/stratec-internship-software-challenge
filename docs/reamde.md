@@ -4,6 +4,7 @@ explain design choices
 
 explain solution
 - take each step into consideration
+- why iterative solution for last part
 
 explain gui
 - why it looks inaccurate
