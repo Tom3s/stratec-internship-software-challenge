@@ -16,6 +16,8 @@ showcase
 # Stratec Software Challenge 2025 Solution
 
 > Usage: Start _backend.exe_ -> start _client.exe_ -> "Request Data" -> Have Fun
+> 
+> Binaries available on [GitHub](https://github.com/Tom3s/stratec-internship-software-challenge/releases/tag/rel)
 
 ---
 
